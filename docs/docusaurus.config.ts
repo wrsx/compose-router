@@ -5,8 +5,8 @@ import type * as Preset from "@docusaurus/preset-classic";
 const config: Config = {
   title: "Compose Router",
   favicon: "img/favicon.ico",
-  url: "https://wrsx.github.io/",
-  baseUrl: "/compose-router",
+  url: "https://wrsx.github.io",
+  baseUrl: "/compose-router/",
   organizationName: "wrsx",
   projectName: "compose-router",
 
