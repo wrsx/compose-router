@@ -10,7 +10,8 @@ annotation class NavigationDslMarker
 
 @NavigationDslMarker
 abstract class RouterScope<T : Screen> {
-    abstract fun <C : ChildScreenOf<T>> screen(
+    @PublishedApi
+    internal abstract fun <C : ChildScreenOf<T>> screen(
         route: KClass<C>,
         config: NavConfig,
         content: @Composable ScreenScope<C>.(NavEntry<C>) -> Unit,
@@ -25,15 +26,17 @@ abstract class RouterScope<T : Screen> {
     ) { screenEntry -> content(screenEntry) }
 }
 
-interface ScreenScope<T : Screen> {
+@NavigationDslMarker
+abstract class ScreenScope<T : Screen> {
+    @PublishedApi
     @Composable
-    fun rememberNavigator(
+    internal abstract fun <T : Screen> rememberNavigator(
         type: KClass<T>,
         navConfig: NavConfig
     ): Navigator<T>
-}
 
-@Composable
-inline fun <reified T : Screen> ScreenScope<T>.rememberNavigator(navConfig: NavConfig = NavConfig.Stack): Navigator<T> {
-    return rememberNavigator(T::class, navConfig)
+    @Composable
+    inline fun <reified T : Screen> rememberNavigator(navConfig: NavConfig = NavConfig.Stack): Navigator<T> {
+        return rememberNavigator(T::class, navConfig)
+    }
 }
