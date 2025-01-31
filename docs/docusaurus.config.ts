@@ -34,6 +34,13 @@ const config: Config = {
   themeConfig: {
     navbar: {
       title: "Compose Router",
+      items: [
+        {
+          href: "https://github.com/wrsx/compose-router",
+          label: "GitHub",
+          position: "right",
+        },
+      ],
     },
     prism: {
       theme: prismThemes.github,
