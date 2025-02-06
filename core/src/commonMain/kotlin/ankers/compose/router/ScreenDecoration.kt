@@ -9,9 +9,8 @@ typealias ScreenDecoration = @Composable (
     content: (@Composable (NavEntry<*>) -> Unit),
 ) -> Unit
 
-val Crossfade: ScreenDecoration =
-    @Composable { selected, content ->
-        Crossfade(selected, label = "", animationSpec = tween(1000)) { visibleEntry ->
-            content.invoke(visibleEntry)
-        }
+val CrossfadeDecoration: ScreenDecoration = @Composable { selected, content ->
+    Crossfade(selected) { visibleEntry ->
+        content.invoke(visibleEntry)
     }
+}
