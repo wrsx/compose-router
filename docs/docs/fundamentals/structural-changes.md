@@ -8,7 +8,7 @@ It is possible to perform structural changes to your navigation graph at runtime
 
 This can be particularly useful when you only want sections of your navigation graph to exist under certain conditions.
 
-For example, you might split your navigation graph into authenticated and un-authenticate sections:
+For example, you might split your navigation graph into authenticated and un-authenticated sections:
 
 ```kotlin
 Router(rootNavigator, key = signedIn) {
