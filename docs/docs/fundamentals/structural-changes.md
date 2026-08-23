@@ -1,31 +1,30 @@
 ---
-sidebar_position: 7
+sidebar_position: 9
 ---
 
-# Structural Changes
+# Structural changes
 
-It is possible to perform structural changes to your navigation graph at runtime. Pass a `key` to `Router` and the graph will automatically reconcile when the key changes.
-
-This can be particularly useful when you only want sections of your navigation graph to exist under certain conditions.
-
-For example, you might split your navigation graph into authenticated and un-authenticated sections:
+The graph can react to application state. `Router` re-declares its graph on every composition; whenever the declared
+routes change, it re-synchronizes:
 
 ```kotlin
-Router(rootNavigator, key = signedIn) {
+Router(root) {
     if (signedIn) {
-        screen<SignedIn> {
-            //..
-        }
+        screen<SignedIn> { /* ... */ }
     } else {
-        screen<SignedOut> {
-            //..
-        }
+        screen<SignedOut> { /* ... */ }
     }
 }
 ```
 
-When `signedIn` changes from `true` to `false`, The router will automatically navigate to `SignedOut` and pop the `SignedIn` screen off the stack.
+When `signedIn` flips, entries of removed routes are retired — with everything nested beneath them, parked or not —
+the policy reconciles its selection, and if the navigator is left empty the new start destination is constructed.
+A removed screen keeps rendering until its exit transition completes.
 
-:::info
-All screens and content lambdas will be disposed when the section of the navigation graph they belong to is removed
-:::
+Navigating to a route that is not in the live graph is dropped with a diagnostic rather than rendering nothing:
+the typed graph checks the static graph, the router checks the live one.
+
+Because the declaration runs every composition, destination content always sees the current captures of its
+enclosing composable — parameters and callbacks included — not the ones from the composition that first built the
+graph. A navigator nested under a retiring section rejects navigation with a diagnostic while the section animates
+out, so nothing can be created beneath an entry that is already gone.

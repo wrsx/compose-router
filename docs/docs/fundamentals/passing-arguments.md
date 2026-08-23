@@ -2,24 +2,37 @@
 sidebar_position: 4
 ---
 
-# Passing Arguments
+# Passing arguments
 
-The instance of the screen object passed to `navigate` is the same instance passed into the screen content. Define arguments on your screen object:
+Arguments are fields on the screen. The instance you navigate to is the instance the content receives:
 
 ```kotlin
-data class UserProfile(val id: Int)
+data class UserProfile(val id: Int) : ChildScreenOf<Root>
 
-Button(onClick = {
-    navigator.navigate(UserProfile(123))
-}) {
-    Text("Navigate")
- }
+navigator.navigate(UserProfile(123))
+
+screen<UserProfile> { entry -> UserProfileScreen(entry.screen.id) }
 ```
 
-And receive the arguments inside the screen content:
+## In ViewModels
+
+Every entry is a `ViewModelStoreOwner`, so `viewModel()` scopes a ViewModel to the entry. The screen reaches the
+ViewModel through its creation extras on every platform:
 
 ```kotlin
-screen<UserProfile> { navEntry ->
-    UserProfileScreen(navEntry.screen.id)
+class UserProfileViewModel(val user: UserProfile) : ViewModel()
+
+screen<UserProfile> {
+    val vm = viewModel { UserProfileViewModel(createSavedStateHandle(), screen<UserProfile>()) }
+}
+```
+
+The entry also seeds every `SavedStateHandle` with the screen, so a ViewModel whose construction you do not control —
+a `@HiltViewModel` — reads it from the handle:
+
+```kotlin
+@HiltViewModel
+class UserProfileViewModel @Inject constructor(handle: SavedStateHandle) : ViewModel() {
+    val user = handle.screen<UserProfile>()
 }
 ```

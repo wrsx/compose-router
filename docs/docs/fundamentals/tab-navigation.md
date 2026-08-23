@@ -2,38 +2,47 @@
 sidebar_position: 3
 ---
 
-# Tab Navigation
+# Tab navigation
 
-A tab navigator reuses the same screen instance when navigating between screens.
-
-Create a tab navigator by passing `NavConfig.Tab()` to `rememberNavigator`
-
-```kotlin
-val tabNavigator = rememberNavigator(NavConfig.Tab())
-```
-
-### Back Behaviour
-
-Two variants are supported:
-
-#### History
-
-Navigating back steps through tab history, always ending back at the first tab. A tab only exists once in the history.
+`NavConfig.Tab()` owns one entry per tab and keeps it while another tab is selected, so switching back restores the
+tab exactly as it was — scroll, input, ViewModels, and any stack nested inside it.
 
 ```kotlin
-rememberNavigator(NavConfig.Tab(BackPress.Stack))
+val tabs = rememberNavigator(NavConfig.Tab())    // a Navigator<SignedIn>
+
+Router(tabs) {
+    screen<Home> { /* ... */ }
+    screen<Search> { /* ... */ }
+    screen<Profile> { /* ... */ }
+}
+
+tabs.navigate(Search)                            // selects Search, creating it the first time
 ```
 
-#### Back-to-first
+`entries` lists the owned tabs in declaration order, and `selected` is the current tab. The first declared tab is
+the *first tab* and always exists once the graph is known.
 
-Navigating back will return to the first tab if it wasnt already selected.
+## Back behaviour
+
+Two policies, both operating on a private selection history:
 
 ```kotlin
-rememberNavigator(NavConfig.Tab(BackPress.First))
+rememberNavigator(NavConfig.Tab(NavConfig.Tab.BackPress.Stack))   // default
+rememberNavigator(NavConfig.Tab(NavConfig.Tab.BackPress.First))
 ```
 
-Both variants ensure that the first screen is always the last screen to be removed.
+- **Stack** — back steps through the tabs you visited, then lands on the first tab.
+- **First** — back returns to the first tab whenever another is selected.
 
-:::info
-First tab refers to the first tab screen registered positionally in the graph
-:::
+In both, the first tab is the last place back leaves you; after that, back passes to the parent navigator.
+`pop()` steps the history and never removes a tab.
+
+## Keeping every tab composed
+
+Because `entries` is the owned set, a renderer that keeps all tabs alive is a few lines:
+
+```kotlin
+Router(tabs, renderer = {
+    Box { renderEach(entries) { tab -> AnimatedVisibility(tab == selected) { render(tab) } } }
+}) { /* ... */ }
+```

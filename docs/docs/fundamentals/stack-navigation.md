@@ -2,14 +2,32 @@
 sidebar_position: 2
 ---
 
-# Stack Navigation
+# Stack navigation
 
-A stack navigator behaves like a regular stack of destinations. Navigating to a new screen will place a new entry at the top of the stack, and navigating back will pop that destination from the stack.
-
-The default navigator returned from `rememberNavigator` is a stack navigator, but you can optionally pass `NavConfig.Stack` explicitly:
+`NavConfig.Stack` is the default policy: entries stack, duplicates are allowed, back pops the top entry.
 
 ```kotlin
-val stackNavigator = rememberNavigator(NavConfig.Stack)
+val stack = rememberNavigator<Root>()            // a StackNavigator<Root>
+
+stack.navigate(Article(1))
+stack.navigate(Article(2))
+stack.pop()                                      // removes Article(2)
+stack.popToRoot()
 ```
 
-The ModalStack example [here](https://github.com/wrsx/compose-router/blob/main/samples/multiplatform/src/androidMain/kotlin/ankers/compose/router/App.kt) demonstrates basic usage of a stack navigator.
+A `StackNavigator` adds the operations only a stack can express:
+
+```kotlin
+stack.popTo<Home>()                              // back to the most recent Home
+stack.popTo<Home>(inclusive = true)              // and pop Home as well
+stack.replace(Article(3))                        // swap the selected entry
+stack.navigate(Article(3), singleTop = true)     // no-op if an equal screen is already on top
+```
+
+`pop` never empties a navigator: an empty navigator would only re-create its start destination.
+
+## Back
+
+Back is not `pop`. `navigator.back()` commits the navigator's **back action** — the resolved step of the deepest
+navigator on the selected path that has something to do — so a nested stack pops before its parent, and a tab
+navigator steps its history rather than removing a tab. See **Back**.

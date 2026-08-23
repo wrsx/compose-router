@@ -2,82 +2,67 @@
 sidebar_position: 1
 ---
 
-# Basic Usage
+# Basic usage
 
-Define a root navigator by implementing the `NavigationRoot` interface:
+Declare a root and the screens that belong to it. Screens are plain `@Serializable` values — an `object`, or a
+`data class` carrying arguments. kotlinx.serialization is how they survive process death; a screen without a
+serializer is rejected the moment it is navigated to, on every platform. Apply the Kotlin serialization compiler
+plugin (`kotlin("plugin.serialization")`) in every module that declares screens; the library brings
+`kotlinx-serialization-core` itself.
 
 ```kotlin
-object Root : NavigationRoot
+@Serializable object Root : NavigationRoot
+@Serializable object Home : ChildScreenOf<Root>
+@Serializable data class Article(val id: Int) : ChildScreenOf<Root>
 ```
 
-Define a set of screens which belong to that navigator by using the `ChildScreenOf<T>` interface:
+Create the root navigator and declare its graph in a `Router`. The first registered route is the start destination.
 
 ```kotlin
-object Home : ChildScreenOf<Root>
-object Profile : ChildScreenOf<Root>
-```
+val root = rememberNavigator<Root>()
 
-Now you can define a navigation graph. Create your root navigator with `rememberNavigator<Root>()` and pass it to a Router. Inside the `Router { .. }` block, define the content for each screen:
-
-```kotlin
-val rootNavigator = rememberNavigator<Root>()
-
-Router(navigator) {
-    screen<Home> {
-        HomeScreen(navigator)
-    }
-
-    screen<Profile> {
-        ProfileScreen(navigator)
-    }
+Router(root) {
+    screen<Home> { HomeScreen(onOpen = { id -> root.navigate(Article(id)) }) }
+    screen<Article> { entry -> ArticleScreen(entry.screen.id) }
 }
 ```
 
-Navigate to a screen:
+## Nesting
+
+A screen's content can create the navigator for its own children. The navigator is owned by that entry: parked with
+it, restored with it, and released with it.
 
 ```kotlin
-rootNavigator.navigate(Profile)
-```
+object Profile : ChildScreenOf<Root>
+object Settings : ChildScreenOf<Profile>
 
-:::info
-Compose Router will automatically choose the first screen as your start destination
-:::
-
-Create a natural navigation hierarchy by nesting Routers:
-
-```kotlin
-val navigator = rememberNavigator<Root>()
-
-Router(navigator) {
-    screen<Home> { .. }
-
+Router(root) {
+    screen<Home> { /* ... */ }
     screen<Profile> {
-        val profileRouter = rememberNavigator()
-
-        Router(profileRouter) {
-            screen<Settings> { .. }
+        val profile = rememberNavigator()   // inferred as Navigator<Profile>
+        Router(profile) {
+            screen<Settings> { /* ... */ }
         }
     }
 }
 ```
 
-Compose Router is type-safe at the graph declaration:
+An entry hosts at most one navigator. Two independent stacks under one screen are two entries.
+
+## Start destinations
+
+The first route is constructed without arguments on JVM and Android (an `object`, or a class whose constructor has
+only defaults). On other platforms, or for a start destination with arguments, pass it explicitly:
 
 ```kotlin
-Router(navigator) {
-    screen<Home> { .. }
-
-    screen<Profile> { .. }
-
-    screen<Settings> {
-        // Error: Settings is not a child screen of Root
-    }
-}
+Router(root, start = Article(1)) { /* ... */ }
 ```
 
-and during navigation:
+## Keys
+
+A root navigator is identified by a key, which namespaces every entry id beneath it (`Root/1`, `Root/1/2`, ...). The
+default is the root type's name; two live roots in one activity need distinct keys:
 
 ```kotlin
-// Error: Settings is not a child screen of Root
-navigator.navigate(Settings)
+rememberNavigator<Root>(key = "main")
 ```

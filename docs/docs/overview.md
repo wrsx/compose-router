@@ -5,40 +5,46 @@ sidebar_position: 1
 
 # Overview
 
-Compose Router is a navigation DSL for Jetpack Compose. The project is Multiplatform, but bindings only exist for Android right now.
+Compose Router is a navigation library for Compose Multiplatform in which the navigation graph lives *inside* the
+composition. A navigator owns entries; a `Router` declares which screens it renders; nested routers live in the
+content of the entries that host them, so scoping falls out of structure rather than a special API.
 
-The goal of this library is to provide a simple yet flexible approach for managing navigation in Compose. It supports all of the core features you would expect from a navigation library, along with several enhancements. Noteable features include:
+Three ideas carry the library:
 
-Out of the box config for common navigation patterns like **Stack** and **Tab** navigation
+**A typed graph.** Screens declare which navigator they belong to, and the compiler checks it:
 
 ```kotlin
-val navigator = rememberNavigator(NavConfig.Tab())
-// OR
-val navigator = rememberNavigator(NavConfig.Stack)
+@Serializable object Root : NavigationRoot
+@Serializable object Home : ChildScreenOf<Root>
+@Serializable object Settings : ChildScreenOf<Home>
+
+root.navigate(Home)          // ok
+root.navigate(Settings)      // compile error: Settings belongs to Home's navigator
+root.navigate(Home.then(Settings))   // ok: a typed path across both navigators
 ```
 
-Supports structural changes to the navigation graph at runtime:
+**Renderers.** A `Router` hands its navigator's entries to a renderer, which decides what to show and where — one
+screen with a crossfade, a list beside a detail, a base screen beneath a sheet. The library enforces the rules that
+keep any layout safe.
+
+**Entry lifetime.** Every entry has a ViewModel store, saved state, and a lifecycle, on every platform. An entry is
+*parked* while it is owned but not rendered (a background tab, the screen under the one you pushed) and keeps
+everything; it is *retired* when no navigator owns it and nothing renders it, and releases everything — including
+the screens parked beneath it.
 
 ```kotlin
-if (signedIn) {
-    screen<SignedIn> {
-        // ..
-    }
-} else {
-    screen<SignedOut> {
-        // ..
-    }
+val navigator = rememberNavigator<Root>()
+
+Router(navigator) {
+    screen<Home> { HomeScreen(navigator) }
+    screen<Profile> { ProfileScreen(navigator) }
 }
 ```
 
-Suports type-safe chained navigation across nested graphs:
+Stack and tab policies are built in; custom policies plug into the same shell. Android adds predictive back,
+`hiltViewModel()`, and `SavedStateHandle` seeding.
 
-```kotlin
-navigator.navigate(SignedIn.then(Profile).then(Settings))
-```
-
-A full working example app demonstrating common navigation patterns can be found [here](https://github.com/wrsx/compose-router/tree/main/samples/multiplatform).
-
-:::warning
-This library is an experimental approach towards handling navigation in compose. It is a personal project and a work in progress, so some features may be lacking or incomplete.
+:::info
+The API in these pages is the productionised one. The design record that produced it is under
+**Productionisation plan**.
 :::

@@ -1,152 +1,136 @@
 package ankers.compose.router.navigator
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.snapshots.SnapshotStateMap
-import ankers.compose.router.ChildScreenOf
-import ankers.compose.router.CombinedNavigation
-import ankers.compose.router.NavEntry
-import ankers.compose.router.NavEntryCreator
-import ankers.compose.router.NavEntryRemoveListener
-import ankers.compose.router.Route
-import ankers.compose.router.Screen
-import ankers.compose.router.rememberMutableStateListOf
+import ankers.compose.router.NavigationRoot
+import ankers.compose.router.entry.EntryId
+import ankers.compose.router.entry.NavEntry
+import ankers.compose.router.events.NavigatorEvents
+import ankers.compose.router.routeName
 import kotlinx.coroutines.flow.filterNotNull
 import kotlin.reflect.KClass
 
-internal class NavigatorProvider(
-    private val navigationsByRoute: SnapshotStateMap<Route, MutableList<Screen>>,
-    private val entryCreator: NavEntryCreator,
-    private val entryRemoveListener: NavEntryRemoveListener = NavEntryRemoveListener { }
-) {
-    @Composable
-    fun <T : Screen> provide(config: NavConfig, type: KClass<T>): CoreNavigator<T> {
-        val navEntries = rememberMutableStateListOf<NavEntry<*>>()
+/** Creates the root navigator for [T] with the default [NavConfig.Stack] policy. */
+@Composable
+inline fun <reified T : NavigationRoot> rememberNavigator(
+    key: String = T::class.simpleName ?: "root",
+    events: NavigatorEvents = NavigatorEvents.Discard,
+): StackNavigator<T> = rememberNavigator(T::class, NavConfig.Stack, key, events)
 
-        val navigator = when (config) {
-            NavConfig.Stack -> StackNavigator<T>(
-                removeListener = entryRemoveListener,
-                entryCreator = entryCreator,
-                navEntries = navEntries,
-            )
+@Composable
+inline fun <reified T : NavigationRoot> rememberNavigator(
+    policy: NavConfig.Stack,
+    key: String = T::class.simpleName ?: "root",
+    events: NavigatorEvents = NavigatorEvents.Discard,
+): StackNavigator<T> = rememberNavigator(T::class, policy, key, events)
 
-            is NavConfig.Tab -> {
-                val cache = rememberMutableStateListOf<NavEntry<*>>()
+/** Creates the root navigator for [T] with [policy]: a [NavConfig.Tab] or a custom [NavigatorPolicy]. */
+@Composable
+inline fun <reified T : NavigationRoot> rememberNavigator(
+    policy: NavigatorPolicy<*>,
+    key: String = T::class.simpleName ?: "root",
+    events: NavigatorEvents = NavigatorEvents.Discard,
+): Navigator<T> = rememberNavigator(T::class, policy, key, events)
 
-                TabNavigator(
-                    config = config,
-                    removeListener = entryRemoveListener,
-                    entryCreator = entryCreator,
-                    navEntries = navEntries,
-                    cache = cache
-                )
-            }
-        }.apply {
-            navigationsByRoute[type]?.asReversed()?.forEach { to ->
-                navigate(to as ChildScreenOf<T>)
-            }
-            navigationsByRoute.remove(type)
-        }
+@Composable
+fun <T : NavigationRoot> rememberNavigator(
+    type: KClass<T>,
+    policy: NavConfig.Stack,
+    key: String = type.routeName,
+    events: NavigatorEvents = NavigatorEvents.Discard,
+): StackNavigator<T> = rememberNavigator(rememberRootShell(policy, key, events)) { StackNavigator(it) }
 
-        LaunchedEffect(navigator) {
-            snapshotFlow { navigationsByRoute[type] }.filterNotNull().collect { navigations ->
-                /** Entries get added in ascending order, but we navigate in descending order */
-                navigations.asReversed().forEach { to ->
-                    navigator.navigate(to as ChildScreenOf<T>)
-                }
-                navigationsByRoute.remove(type)
-            }
-        }
+@Composable
+fun <T : NavigationRoot> rememberNavigator(
+    type: KClass<T>,
+    policy: NavigatorPolicy<*>,
+    key: String = type.routeName,
+    events: NavigatorEvents = NavigatorEvents.Discard,
+): Navigator<T> = rememberNavigator(rememberRootShell(policy, key, events)) { Navigator(it) }
 
-        return navigator
+@Composable
+internal fun <S : Any, N : Navigator<*>> rememberNavigator(shell: NavigatorShell<S>, create: (NavigatorShell<S>) -> N): N =
+    remember(shell) { create(shell).also { shell.navigator = it } }
+
+@Composable
+internal fun <S : Any> rememberRootShell(
+    policy: NavigatorPolicy<S>,
+    key: String,
+    events: NavigatorEvents,
+): NavigatorShell<S> {
+    val runtime = rememberNavigationRuntime(key)
+    DisposableEffect(runtime, key) {
+        check(runtime.roots.add(key)) { "two live root navigators share the key '$key'; pass distinct keys to rememberNavigator" }
+        onDispose { runtime.roots.remove(key) }
     }
+    return rememberShell(
+        prefix = EntryId.root(key),
+        policy = policy,
+        runtime = runtime,
+        events = events,
+        parent = null,
+    )
 }
 
 @Composable
-internal fun <T : Screen> rememberNavigatorImpl(
-    type: KClass<T>,
-    navConfig: NavConfig,
-    coreNavigatorProvider: NavigatorProvider,
-    navigationsByRoute: SnapshotStateMap<Route, MutableList<Screen>> = remember { mutableStateMapOf() },
-    locked: MutableState<Boolean> = remember { mutableStateOf(false) },
-    backHandlerProvider: @Composable (BackHandler, List<Route>) -> Unit,
-): Navigator<T> {
-    val coreNavigator = coreNavigatorProvider.provide(navConfig, type)
-
-    val publicNavigator = remember {
-        object : Navigator<T>() {
-            override fun navigate(to: ChildScreenOf<T>) {
-                if (locked.value) return
-                coreNavigator.navigate(to)
-            }
-
-            override fun navigate(to: CombinedNavigation<out ChildScreenOf<T>, *>) {
-                if (locked.value) return
-
-                /** For each screen in the chain, add an entry in the nav registry.
-                 * If parent is null, this must be a screen for this navigator */
-                to.forEach { parent, current ->
-                    navigationsByRoute.add(parent?.let { it::class } ?: type, current)
-                }
-            }
-
-            @Composable
-            override fun <C : ChildScreenOf<T>> rememberNavigator(
-                type: KClass<C>,
-                navConfig: NavConfig,
-            ): Navigator<C> {
-                return rememberNavigatorImpl(
-                    type = type,
-                    navConfig = navConfig,
-                    navigationsByRoute = navigationsByRoute,
-                    locked = locked,
-                    backHandlerProvider = backHandlerProvider,
-                    coreNavigatorProvider = coreNavigatorProvider
-                )
-            }
-
-            override fun popToRoot(): Navigator<T> {
-                coreNavigator.popToRoot()
-                return this
-            }
-
-            override fun pop(count: Int): Navigator<T> {
-                if (locked.value) return this
-                coreNavigator.pop(count)
-                return this
-            }
-
-            override fun removeIf(predicate: (NavEntry<*>) -> Boolean): Navigator<T> {
-                coreNavigator.removeIf(predicate)
-                return this
-            }
-
-            override val selected: NavEntry<*>?
-                get() = coreNavigator.selected
-
-            override val isEmpty: Boolean
-                get() = coreNavigator.isEmpty
-
-            override val currentScreen: Screen?
-                get() = coreNavigator.currentScreen
-
-            @Composable
-            override fun BackHandler(routes: List<Route>) {
-                backHandlerProvider(coreNavigator.backHandler, routes)
-            }
-        }
+internal fun <S : Any> rememberChildShell(
+    parent: NavigatorShell<*>,
+    entry: NavEntry<*>,
+    policy: NavigatorPolicy<S>,
+    events: NavigatorEvents,
+): NavigatorShell<S> {
+    val runtime = parent.runtime
+    val childEvents = remember(entry.id, events) {
+        val writer = checkNotNull(runtime.registry.writer(entry.id)) { "entry ${entry.id} is not registered" }
+        writer.child() + events
     }
-
-    return publicNavigator
+    return rememberShell(
+        prefix = entry.id,
+        policy = policy,
+        runtime = runtime,
+        events = childEvents,
+        parent = parent,
+    )
 }
 
-private fun SnapshotStateMap<Route, MutableList<Screen>>.add(key: Route, navigable: Screen) {
-    set(key, getOrElse(key) { mutableListOf() }.apply {
-        add(navigable)
-    })
+@Composable
+private fun <S : Any> rememberShell(
+    prefix: EntryId,
+    policy: NavigatorPolicy<S>,
+    runtime: NavigationRuntime,
+    events: NavigatorEvents,
+    parent: NavigatorShell<*>?,
+): NavigatorShell<S> {
+    val saver = remember(prefix, policy, runtime, events, parent) {
+        listSaver<NavigatorShell<S>, Any?>(
+            save = { it.snapshot().toSaveable() },
+            restore = { NavigatorShell(prefix, policy, runtime, events, parent, NavigatorSnapshot.fromSaveable(it)) },
+        )
+    }
+    val shell = rememberSaveable(prefix.toString(), policy.key, saver = saver) {
+        NavigatorShell(prefix, policy, runtime, events, parent, restored = null)
+    }
+    LaunchedEffect(shell) {
+        snapshotFlow { runtime.mailbox[prefix] }.filterNotNull().collect { shell.consumePending() }
+    }
+    return shell
+}
+
+/** Registers [child] as the single navigator under [entry]; a second one is an error. */
+@Composable
+internal fun RegisterChild(parent: NavigatorShell<*>, entry: NavEntry<*>, child: Navigator<*>) {
+    DisposableEffect(parent, entry.id, child) {
+        val existing = parent.children[entry.id]
+        check(existing == null || existing === child) {
+            "entry ${entry.id} already has a child navigator. An entry hosts at most one navigator; " +
+                "model independent stacks as separate entries"
+        }
+        parent.children[entry.id] = child
+        onDispose { if (parent.children[entry.id] === child) parent.children.remove(entry.id) }
+    }
 }

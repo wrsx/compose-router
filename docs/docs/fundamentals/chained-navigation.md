@@ -1,54 +1,35 @@
 ---
-sidebar_position: 6
+sidebar_position: 10
 ---
 
-# Chained Navigation
+# Chained navigation
 
-Sometimes it necessary to navigate to a screen which would otherwise require a series of individual navigations. We want to ensure that the path to this new screen remains valid so that the backstack represents a real flow. To achieve this, Compose Router introduces chained navigation:
+Navigate to a screen along a path, so the back stack represents a real flow:
 
 ```kotlin
-// Navigate to NewsPost(123), but make sure Home and Newsfeed are on the backstack
-
 navigate(Home.then(Newsfeed).then(NewsPost(123)))
 ```
 
-Chained navigation also works for nested navigators, allowing you to express navigation paths which span over multiple navigators:
-
-Given this navigation graph:
+Chains cross navigators. Each segment is delivered to the navigator that owns it — including navigators that do not
+exist yet, which receive their segments when they are created:
 
 ```kotlin
-val rootNavigator = rememberNavigator<Root>()
+root.navigate(SignedIn.then(Profile).then(Settings))
+```
 
-Router(rootNavigator) {
-    screen<SignedIn> {
-        val signedInNavigator = rememberNavigator()
+A navigator always starts with its start destination; a segment equal to the entry already selected reuses it, so
+`Profile.then(Settings)` and `Profile.then(ProfileHome).then(Settings)` land on the same stack whether or not
+`Profile` had been visited before. Delivery is addressed to the entry each segment was navigated under: the rest of the chain waits for *that*
+entry's navigator, and is dropped if the entry is released first — a section removed while a chain is in flight
+never replays it later. Any other navigation in the meantime interleaves normally.
 
-        Router(signedInNavigator) {
-            screen<TabA> {
-                //..
-            }
-            screen<TabB> {
-                //..
-            }
-        }
-    }
+Chains are typed: `then` only accepts a sibling on the same navigator or a child of the preceding screen, so a path
+that the graph cannot express does not compile.
 
-    screen<SignedOut> {
-        //..
-    }
+Deep links map onto chains:
+
+```kotlin
+when (url.path) {
+    "profile/settings" -> root.navigate(SignedIn.then(Profile).then(Settings))
 }
-```
-
-We could then navigate into TabA via the rootNavigator:
-
-```kotlin
-rootNavigator.navigate(SignedIn).then(TabA)
-```
-
-Chained navigation is type safe, and will only allow you to express navigation paths which are defined in your graph. Following the above example, the following would be invalid:
-
-```kotlin
-// Error: SignedOut is not a child screen of TabA
-
-rootNavigator.navigate(SignedIn.then(TabA).then(SignedOut))
 ```

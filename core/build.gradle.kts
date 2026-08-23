@@ -1,28 +1,34 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinAndroidTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
+    jvmToolchain(17)
+
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     androidTarget {
         compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_11)
+            jvmTarget.set(JvmTarget.JVM_17)
         }
     }
 
     iosX64()
     iosArm64()
     iosSimulatorArm64()
-    
+
     jvm()
-    
+
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser()
@@ -35,37 +41,50 @@ kotlin {
     @OptIn(ExperimentalKotlinGradlePluginApi::class)
     applyDefaultHierarchyTemplate {
         common {
-            group("jvmAndAndroid") {
-                withJvm()
-                withAndroidTarget()
-            }
-
             group("browser") {
                 withJs()
                 withWasmJs()
             }
+
+            group("nonAndroid") {
+                withJvm()
+                withJs()
+                withWasmJs()
+                withNative()
+            }
         }
     }
-    
+
     sourceSets {
-        androidMain.dependencies {
-            implementation(compose.preview)
-            implementation(libs.androidx.activity.compose)
-            implementation(libs.androidx.lifecycle.viewmodel.compose)
-            implementation(libs.kotlin.reflect)
-        }
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
-            implementation(compose.material)
+            implementation(compose.animation)
             implementation(compose.ui)
-            implementation(compose.components.resources)
-            implementation(compose.components.uiToolingPreview)
-            implementation(libs.androidx.lifecycle.viewmodel)
+            implementation(libs.androidx.lifecycle.runtime)
             implementation(libs.androidx.lifecycle.runtime.compose)
+            implementation(libs.androidx.lifecycle.viewmodel)
+            implementation(libs.androidx.lifecycle.viewmodel.compose)
+            implementation(libs.androidx.lifecycle.viewmodel.savedstate)
+            implementation(libs.androidx.savedstate)
+            implementation(libs.androidx.savedstate.compose)
+            implementation(libs.kotlinx.coroutines.core)
+            api(libs.kotlinx.serialization.core)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
+        }
+        androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
+        }
+        jvmTest.dependencies {
+            implementation(compose.desktop.currentOs)
+            @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+            implementation(compose.uiTest)
+            implementation(libs.kotlinx.coroutines.swing)
+            implementation(libs.kotlin.test.junit)
+            implementation(libs.junit)
         }
     }
 }
@@ -73,6 +92,7 @@ kotlin {
 android {
     namespace = "ankers.compose.router"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
+    defaultConfig.consumerProguardFiles("consumer-rules.pro")
 
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()
@@ -88,11 +108,7 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
-}
-
-dependencies {
-    debugImplementation(compose.uiTooling)
 }
