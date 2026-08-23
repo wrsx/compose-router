@@ -8,7 +8,11 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
+    id("maven-publish")
 }
+
+group = "ankers.compose.router"
+version = "0.1.0"
 
 kotlin {
     jvmToolchain(17)
@@ -21,6 +25,7 @@ kotlin {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
         }
+        publishLibraryVariants("release")
     }
 
     iosX64()
