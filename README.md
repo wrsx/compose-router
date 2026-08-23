@@ -1,8 +1,8 @@
 # Compose Router
 
-A typed, composition-embedded navigation library for Compose Multiplatform. The navigation graph lives inside your
-composition, nested navigators scope state naturally, and the type system checks which screens belong to which
-navigator — at declaration and at navigation.
+Compose Router is a navigation library for Compose Multiplatform. Routers are declared in composition, and nested
+navigators are owned by the entries that create them. Screens declare which navigator they belong to, so the same
+relationship is checked when routes are registered and when navigation occurs.
 
 ```kotlin
 @Serializable object Root : NavigationRoot
@@ -27,33 +27,31 @@ fun App() {
 }
 ```
 
-What you get:
+`ChildScreenOf<T>` restricts a navigator and its router to the children of `T`. It also allows a path such as
+`Home.then(Profile).then(Settings)` to be checked across nested navigators. This catches graph wiring mistakes, but
+does not require the application to maintain a mutable back stack.
 
-- **Typed graph.** `ChildScreenOf<T>` makes "this screen belongs to that navigator" a compile-time fact, and
-  `navigate(Home.then(Profile).then(Settings))` type-checks the whole path across nested navigators.
-- **Stacks and tabs out of the box**, with two back disciplines for tabs and retained tab state.
-- **Renderers**, not a fixed layout: crossfade by default, predictive back, list/detail, sheets and dialogs — any
-  layout of a navigator's entries, with the rules that keep it safe enforced at runtime.
-- **Overlays owned by the right navigator**: a sheet can belong to the section that opened it and still draw
-  above everything.
-- **Entry lifetime done properly**: ViewModels, saved state, and lifecycle per entry on every platform; parked
-  screens keep their state, retired ones release it — including screens parked in other tabs.
-- **Observable**: scoped events for analytics or DI, and `navigator.describe()` for a text dump of the whole tree.
+Stack and retained-tab policies are included. Rendering is separate from navigation policy: the built-in renderers
+cover crossfade and predictive back, while custom renderers can implement multi-pane layouts, sheets or dialogs.
+An overlay can remain owned by the feature that opened it while being rendered higher in the UI.
+
+Each entry has its own ViewModel store, saved state and lifecycle. Entries parked in another tab keep their state;
+entries are released after they are no longer owned or rendered. Scoped events are available for analytics and DI,
+and `navigator.describe()` prints the current navigation tree.
 
 Android gets predictive back, `hiltViewModel()`, and `SavedStateHandle` seeding; the core is common Kotlin with JVM,
 iOS, JS, and Wasm targets.
 
 ## Why
 
-Reach for it when the app has nested, feature-owned stacks; mixes tabs and stacks; wants the compiler to check
-which screens belong to which navigator; is Compose-only; and needs resource lifetime to be exactly right.
+Compose Router is aimed at apps with nested feature-owned stacks, retained tabs, section-owned overlays or resources
+whose lifetime should follow a navigation entry.
 
-The back stack is not a list you own, on purpose. Releasing a ViewModel at the right moment, keeping a parked
-tab's state, retiring a section with everything beneath it, drawing a section's sheet above the whole app, and
-resolving back across nested stacks all need one place that knows every owner and every host of every entry. The
-navigator is that place; what stays open is the policy (how navigate, pop and back mutate entries) and the
-renderer (what the entries look like). The trade-offs — more rules, `@Serializable` screens, renderers you write —
-are spelled out in [Why Compose Router](docs/docs/why.md).
+The application does not own a mutable back stack. The navigator owns entry identity, lifetime, restoration and
+back resolution; applications choose the navigation policy and renderer. This is useful when those runtime rules
+should be consistent across the app. It is a poor fit when navigation needs to live in a ViewModel or reducer, or
+when the app needs a topology other than a tree of stacks, tabs and overlays. The full rationale and trade-offs are
+in [Why Compose Router](docs/docs/why.md).
 
 ## Setup
 
@@ -72,15 +70,14 @@ dependencies {
 
 ## Documentation
 
-The docs are a Docusaurus site under `docs/`:
+The documentation is a Docusaurus site under `docs/`:
 
 ```sh
 cd docs && npm install && npm start
 ```
 
-Start with **Basic usage**, then **Rendering**, **Overlays**, **Back**, and **Lifetime**. The sample under
-`samples/multiplatform` runs on Android (`:samples:multiplatform:installDebug`) and desktop
-(`:samples:multiplatform:run`) — resize the desktop window on the Items tab to see list/detail adapt.
+The sample under `samples/multiplatform` runs on Android (`:samples:multiplatform:installDebug`) and desktop
+(`:samples:multiplatform:run`). Resize the desktop window on the Items tab to see the list/detail renderer adapt.
 
 ## Building
 
