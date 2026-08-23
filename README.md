@@ -39,6 +39,10 @@ Each entry has its own ViewModel store, saved state and lifecycle. Entries parke
 entries are released after they are no longer owned or rendered. Scoped events are available for analytics and DI,
 and `navigator.describe()` prints the current navigation tree.
 
+An entry can also define a longer-lived region. For example, an `Authenticated` entry can own a ViewModel or DI
+scope and provide it to every router beneath it. The scope survives navigation and retained-tab changes, then closes
+with the authenticated entry and all of its descendants on sign-out.
+
 Android gets predictive back, `hiltViewModel()`, and `SavedStateHandle` seeding; the core is common Kotlin with JVM,
 iOS, JS, and Wasm targets.
 

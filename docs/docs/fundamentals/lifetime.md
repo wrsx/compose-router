@@ -25,6 +25,44 @@ Every entry is a `ViewModelStoreOwner`, `LifecycleOwner`, and `SavedStateRegistr
 `viewModel()`, `LifecycleResumeEffect`, `collectAsStateWithLifecycle`, and `SavedStateHandle` behave as they do under
 Navigation 2 and 3. A nested entry's lifecycle never exceeds its parent entry's.
 
+## Region-scoped state
+
+A screen that hosts a nested router is also a natural lifetime boundary. For example, state used throughout the
+signed-in part of an app can be owned by the `Authenticated` entry and passed to everything beneath it:
+
+```kotlin
+@Serializable object Authenticated : ChildScreenOf<Root>
+@Serializable object Home : ChildScreenOf<Authenticated>
+@Serializable object Account : ChildScreenOf<Authenticated>
+
+screen<Authenticated> {
+    val region = viewModel<AuthRegionModel>()
+    val authenticated = rememberNavigator()
+
+    CompositionLocalProvider(LocalAuthRegion provides region) {
+        Router(authenticated) {
+            screen<Home> { HomeScreen(LocalAuthRegion.current) }
+            screen<Account> { AccountScreen(LocalAuthRegion.current) }
+        }
+    }
+}
+```
+
+`AuthRegionModel` belongs to the `Authenticated` entry. It survives navigation within the region, retained-tab
+changes, and periods when the entry is parked. Removing `Authenticated` retires every navigator beneath it and
+clears the model after the region has finished rendering, including exit animations.
+
+Child entries still have their own ViewModel stores. Calling `viewModel<AuthRegionModel>()` inside `Home` would
+therefore create a Home-scoped instance rather than retrieve the authenticated one. Pass the region as a parameter,
+provide it through a custom `CompositionLocal`, or connect the same hierarchy to a DI container through the events
+API below. A projected overlay is composed at the `OverlayHost`, so give it the region through an argument or lexical
+capture rather than relying on a custom composition local.
+
+If the scoped value needs deterministic cleanup, own it from a ViewModel and close it in `onCleared()`, or create and
+close it from `EntryEvents`. Only use a navigation entry for the scope when their lifetimes really match. A login
+session or token store will often belong to application authentication state, while signed-in UI state, feature
+components and flow coordinators are good candidates for the `Authenticated` entry.
+
 ## Events
 
 Observe a navigator with a scoped writer: one object per navigator, per entry, per host. Writers compose with `plus`
