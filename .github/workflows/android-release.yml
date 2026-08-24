@@ -1,7 +1,9 @@
 name: Publish Android artifact to Vitruvian's Maven Artifact Registry (GCP)
 
 on:
-  workflow_dispatch
+  workflow_dispatch:
+  release:
+    types: [published]
 
 concurrency:
   group: ${{ github.workflow }}
@@ -10,7 +12,6 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: prod
 
     steps:
       - name: Checkout repository
@@ -28,6 +29,10 @@ jobs:
       - name: Publish ankers.compose.router:core-android
         run: |
           ENCODED_SECRET=$(printf '%s' "$GCP_CREDENTIALS" | base64 -w 0)
-          ./gradlew :core:publishAndroidReleasePublicationToArtifactRegistryRepository -PartifactRegistryMavenSecret="${ENCODED_SECRET}"
+          ARGS=""
+          if [ "${{ github.event_name }}" = "release" ]; then
+            ARGS="-PpublishVersion=${GITHUB_REF_NAME#v}"
+          fi
+          ./gradlew :core:publishAndroidReleasePublicationToArtifactRegistryRepository -PartifactRegistryMavenSecret="${ENCODED_SECRET}" ${ARGS}
         env:
           GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}

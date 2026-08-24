@@ -1,5 +1,7 @@
 # Compose Router
 
+[![Latest release](https://img.shields.io/github/v/release/wrsx/compose-router)](https://github.com/wrsx/compose-router/releases)
+
 Compose Router is a navigation library for Compose Multiplatform. Routers are declared in composition, and nested
 navigators are owned by the entries that create them. Screens declare which navigator they belong to, so the same
 relationship is checked when routes are registered and when navigation occurs.

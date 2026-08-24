@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "ankers.compose.router"
-version = "0.1.0"
+version = providers.gradleProperty("publishVersion").getOrElse("0.1.0")
 
 kotlin {
     jvmToolchain(17)
