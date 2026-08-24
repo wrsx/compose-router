@@ -117,3 +117,18 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 }
+
+val artifactRegistryMavenSecret: String? by project
+
+publishing {
+    repositories {
+        maven {
+            name = "artifactRegistry"
+            url = uri("https://us-maven.pkg.dev/secure-moment-297910/compose-router")
+            credentials {
+                username = "_json_key_base64"
+                password = artifactRegistryMavenSecret
+            }
+        }
+    }
+}

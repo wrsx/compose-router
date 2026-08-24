@@ -1,0 +1,33 @@
+name: Publish Android artifact to Vitruvian's Maven Artifact Registry (GCP)
+
+on:
+  workflow_dispatch
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Publish ankers.compose.router:core-android
+        run: |
+          ENCODED_SECRET=$(printf '%s' "$GCP_CREDENTIALS" | base64 -w 0)
+          ./gradlew :core:publishAndroidReleasePublicationToArtifactRegistryRepository -PartifactRegistryMavenSecret="${ENCODED_SECRET}"
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
