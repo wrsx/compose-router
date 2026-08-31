@@ -137,7 +137,15 @@ fun <T : Screen> Router(
     val declaredRoutes = declared.map { it.route }
     if (declaredRoutes != routes) {
         val gone = shell.reconcile(declaredRoutes)
-        gone.forEach { entry -> if (registry.isHosted(entry.id)) previous.forScreen(entry.screen)?.let { retiring[entry.id] = it } }
+        gone.forEach { entry ->
+            if (registry.isHosted(entry.id)) {
+                previous.forScreen(entry.screen)?.let { retiring[entry.id] = it }
+            } else if (!registry.contains(entry.id)) {
+                // released inside this pass — a restored route rejected before the release listener below
+                // exists. Drop its payload here or it stays in every future save.
+                stateHolder.removeState(entry.id.toString())
+            }
+        }
         routes.clear()
         routes += declaredRoutes
     }

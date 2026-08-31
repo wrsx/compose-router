@@ -663,6 +663,47 @@ class RouterTest {
         assertEquals(C(4), nav.selected?.screen)
         assertNotNull(nav.backAction)
     }
+
+    @Test
+    fun `a restored route rejected on first composition drops its saved payload`() = runTest {
+        val composed = Composed()
+        lateinit var nav: StackNavigator<Root>
+        var declareB by mutableStateOf(true)
+        val content: @Composable () -> Unit = {
+            nav = rememberNavigator<Root>()
+            Router(nav, renderer = PlainRenderer) {
+                screen<A> { composed.mark("A") }
+                if (declareB) screen<B> {
+                    rememberSaveable { "sentinel-payload" }
+                    composed.mark("B")
+                }
+            }
+        }
+
+        var registry = SaveableStateRegistry(restoredValues = null, canBeSaved = { true })
+        val app: @Composable () -> Unit = { CompositionLocalProvider(LocalSaveableStateRegistry provides registry) { content() } }
+
+        val first = TestComposition(this)
+        first.setContent(app)
+        first.waitUntil { composed["A"] > 0 }
+        nav.navigate(B)
+        first.waitUntil { composed["B"] > 0 }
+        first.frames(2)
+        val saved = registry.performSave()
+        assertTrue(saved.toString().contains("sentinel-payload"))
+        first.dispose()
+
+        // the app comes back after process death without the route: the restored entry is rejected on the
+        // Router's first composition, before the release listener has been installed
+        declareB = false
+        val marked = composed["A"]
+        registry = SaveableStateRegistry(restoredValues = saved, canBeSaved = { true })
+        val second = TestComposition(this)
+        second.setContent(app)
+        second.waitUntil { composed["A"] > marked }
+        assertEquals(listOf("Root/1"), nav.entries.map { it.id.toString() })
+        assertFalse(registry.performSave().toString().contains("sentinel-payload"))
+    }
 }
 
 @Composable
