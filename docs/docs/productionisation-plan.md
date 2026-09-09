@@ -68,6 +68,10 @@ The plan was implemented in one pass. What shipped, and where it deviates from t
   `stateOf` so custom policies can expose operations publicly; the custom-policy example keeps popped entries owned
   and saves entry ids (screens are not saveable values). Setup docs state the serialization plugin requirement;
   the contract suite is documented as internal test code pending a `compose-router-testing` artifact.
+- **Renderer direction fixed, spec configurable (0.1.2).** `PredictiveBackRenderer` judged direction by each
+  entry's current index, but a popped entry is gone by the time its exit animates, so every button-driven pop
+  animated as a push. Direction now comes from where each entry last stood. `predictiveBackRenderer(spec)` lets an
+  app choose the transition per pair of entries; the default is unchanged.
 - **`LocalCurrentEntry` removed.** The entry host once provided it so a nested navigator could find its parent
   entry and so lifecycle caps could follow composition position; both now come from `ScreenScope` and the
   registry, and nothing else consumed it.

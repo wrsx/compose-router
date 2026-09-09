@@ -612,7 +612,7 @@ class RouterTest {
         nav.navigate(C(1))
         composition.frames(2)
         nav.shell.transition = BackTransition(nav.entries[1], nav.entries[0], 0.5f, BackEdge.Left)
-        composition.frames(2)
+        composition.waitUntil { kept != null }
         assertNull(narrowed)
         assertEquals(nav.entries[1], kept?.outgoing)
         nav.shell.transition = null

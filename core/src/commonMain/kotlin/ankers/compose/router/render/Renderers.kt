@@ -1,6 +1,8 @@
 package ankers.compose.router.render
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.SeekableTransitionState
 import androidx.compose.animation.core.rememberTransition
@@ -13,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import ankers.compose.router.entry.EntryId
+import ankers.compose.router.entry.NavEntry
 
 /** The default renderer: crossfades between selected entries; projected entries go to the [OverlayHost]. */
 val CrossfadeRenderer: RouterRenderer = {
@@ -24,10 +28,25 @@ val CrossfadeRenderer: RouterRenderer = {
 }
 
 /**
- * A single-pane renderer that follows predictive back: the gesture seeks a slide between the outgoing and incoming
- * entries, commit completes it, cancel returns. Pushes slide forward, pops slide back.
+ * Chooses the transition between two entries. [forward] is true for a push or a replace and false for a pop, judged
+ * by where each entry last stood in the navigator, so a popped entry still animates out the way it came.
  */
-val PredictiveBackRenderer: RouterRenderer = {
+typealias PredictiveBackSpec = AnimatedContentTransitionScope<NavEntry<*>>.(forward: Boolean) -> ContentTransform
+
+/** The default: a quarter-width slide with a fade, forward for pushes and back for pops. */
+val DefaultPredictiveBackSpec: PredictiveBackSpec = { forward ->
+    if (forward) {
+        (fadeIn() + slideInHorizontally { it / 4 }) togetherWith (fadeOut() + slideOutHorizontally { -it / 4 })
+    } else {
+        (fadeIn() + slideInHorizontally { -it / 4 }) togetherWith (fadeOut() + slideOutHorizontally { it })
+    }
+}
+
+/**
+ * A single-pane renderer that follows predictive back: the gesture seeks [transitionSpec] between the outgoing and
+ * incoming entries, commit completes it, cancel returns. Button-driven navigation runs the same spec.
+ */
+fun predictiveBackRenderer(transitionSpec: PredictiveBackSpec = DefaultPredictiveBackSpec): RouterRenderer = {
     val target = inlineSelected
     if (target != null) {
         val seekable = remember { SeekableTransitionState(target) }
@@ -36,22 +55,24 @@ val PredictiveBackRenderer: RouterRenderer = {
         LaunchedEffect(gesture?.incoming, gesture?.progress, target) {
             if (gesture != null && gesture.incoming != target) seekable.seekTo(gesture.progress, gesture.incoming) else seekable.animateTo(target)
         }
-        val entries = entries
+        // where each entry last stood: a popped entry is gone from `entries` by the time its exit animates
+        val positions = remember { mutableMapOf<EntryId, Int>() }
+        entries.forEachIndexed { index, entry -> positions[entry.id] = index }
+        positions.keys.retainAll(entries.mapTo(mutableSetOf()) { it.id } + seekable.currentState.id)
         val beneath = coveredBeneathProjection()
         rememberTransition(seekable, label = "router").AnimatedContent(
             transitionSpec = {
-                val forward = entries.indexOf(targetState) >= entries.indexOf(initialState)
-                if (forward) {
-                    (fadeIn() + slideInHorizontally { it / 4 }) togetherWith (fadeOut() + slideOutHorizontally { -it / 4 })
-                } else {
-                    (fadeIn() + slideInHorizontally { -it / 4 }) togetherWith (fadeOut() + slideOutHorizontally { it })
-                }
+                val forward = (positions[targetState.id] ?: 0) >= (positions[initialState.id] ?: -1)
+                transitionSpec(forward)
             },
             contentKey = { it.id },
         ) { entry -> render(entry, handlesBack = beneath) }
     }
     Projected()
 }
+
+/** [predictiveBackRenderer] with [DefaultPredictiveBackSpec]. */
+val PredictiveBackRenderer: RouterRenderer = predictiveBackRenderer()
 
 // a selected projection covers the pane beneath: rendered covered, its lifecycle drops to CREATED and its own back
 // handlers disarm, so back reaches the projection

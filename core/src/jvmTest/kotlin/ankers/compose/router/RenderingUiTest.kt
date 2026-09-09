@@ -34,6 +34,8 @@ import ankers.compose.router.navigator.StackNavigator
 import ankers.compose.router.navigator.rememberNavigator
 import ankers.compose.router.render.OverlayHost
 import ankers.compose.router.render.PredictiveBackRenderer
+import ankers.compose.router.render.predictiveBackRenderer
+import ankers.compose.router.render.DefaultPredictiveBackSpec
 import ankers.compose.router.render.RouterRenderer
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -330,6 +332,44 @@ class RenderingUiTest {
         mainClock.advanceTimeBy(2_000)
         onNodeWithTag("B").assertDoesNotExist()
         onNodeWithTag("A").assertExists()
+    }
+
+    @Test
+    fun `the predictive back renderer animates a button pop backwards and a replace forwards`() = runComposeUiTest {
+        mainClock.autoAdvance = false
+        val directions = mutableListOf<Triple<String, String, Boolean>>()
+        lateinit var nav: StackNavigator<Root>
+        val recording = predictiveBackRenderer { forward ->
+            directions += Triple(initialState.id.toString(), targetState.id.toString(), forward)
+            DefaultPredictiveBackSpec(this, forward)
+        }
+        setContent {
+            nav = rememberNavigator<Root>()
+            Router(nav, renderer = recording) {
+                screen<A> { BasicText("A", Modifier.testTag("A")) }
+                screen<B> { BasicText("B", Modifier.testTag("B")) }
+                screen<C> { BasicText("C", Modifier.testTag("C")) }
+            }
+        }
+        nav.navigate(B)
+        mainClock.advanceTimeBy(2_000)
+        nav.back()
+        mainClock.advanceTimeBy(2_000)
+        nav.navigate(C(1))
+        mainClock.advanceTimeBy(2_000)
+        nav.replace(C(2))
+        mainClock.advanceTimeBy(2_000)
+        onNodeWithTag("C").assertExists()
+        assertEquals(
+            listOf(
+                Triple("Root/1", "Root/2", true),
+                Triple("Root/2", "Root/1", false),
+                Triple("Root/1", "Root/3", true),
+                Triple("Root/3", "Root/4", true),
+            ),
+            // the first composition reports a self transition; only real pairs matter
+            directions.distinct().filter { it.first != it.second },
+        )
     }
 
     @Test
