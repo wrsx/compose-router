@@ -30,6 +30,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import ankers.compose.router.back.LocalBackScope
 import ankers.compose.router.back.BackEdge
 import ankers.compose.router.back.BackTransition
+import ankers.compose.router.back.dragBack
 import ankers.compose.router.navigator.StackNavigator
 import ankers.compose.router.navigator.rememberNavigator
 import ankers.compose.router.render.OverlayHost
@@ -39,6 +40,7 @@ import ankers.compose.router.render.DefaultPredictiveBackSpec
 import ankers.compose.router.render.RouterRenderer
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertFails
 import kotlin.test.assertTrue
 
@@ -307,7 +309,7 @@ class RenderingUiTest {
     }
 
     @Test
-    fun `the predictive back renderer previews the incoming entry and commit pops`() = runComposeUiTest {
+    fun `a hand-driven back gesture previews, cancels back, and commits the pop`() = runComposeUiTest {
         mainClock.autoAdvance = false
         lateinit var nav: StackNavigator<Root>
         setContent {
@@ -321,17 +323,26 @@ class RenderingUiTest {
         mainClock.advanceTimeBy(2_000)
         onNodeWithTag("A").assertDoesNotExist()
 
-        val action = nav.backAction!!
-        nav.shell.transition = BackTransition(action.outgoing, action.incoming, 0.5f, BackEdge.Left)
+        val gesture = nav.dragBack()!!
+        gesture.progress(0.5f)
         mainClock.advanceTimeBy(100)
         onNodeWithTag("A").assertExists()
         onNodeWithTag("B").assertExists()
 
-        action.commit()
-        nav.shell.transition = null
+        gesture.cancel()
+        mainClock.advanceTimeBy(2_000)
+        onNodeWithTag("A").assertDoesNotExist()
+        onNodeWithTag("B").assertExists()
+
+        val again = nav.dragBack()!!
+        again.progress(0.8f)
+        mainClock.advanceTimeBy(100)
+        again.commit()
+        again.cancel()
         mainClock.advanceTimeBy(2_000)
         onNodeWithTag("B").assertDoesNotExist()
         onNodeWithTag("A").assertExists()
+        assertNull(nav.shell.transition)
     }
 
     @Test

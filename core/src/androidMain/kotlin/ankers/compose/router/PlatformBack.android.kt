@@ -16,20 +16,14 @@ internal actual fun PlatformBackScope(root: Navigator<*>, content: @Composable (
         return
     }
     PredictiveBackHandler(enabled = root.canGoBack) { progress ->
-        val action = root.backAction ?: return@PredictiveBackHandler
-        val shell = action.target.shell
+        val gesture = root.dragBack() ?: return@PredictiveBackHandler
         try {
             progress.collect { event ->
-                shell.transition = BackTransition(
-                    outgoing = action.outgoing,
-                    incoming = action.incoming,
-                    progress = event.progress,
-                    edge = if (event.swipeEdge == BackEventCompat.EDGE_LEFT) BackEdge.Left else BackEdge.Right,
-                )
+                gesture.progress(event.progress, if (event.swipeEdge == BackEventCompat.EDGE_LEFT) BackEdge.Left else BackEdge.Right)
             }
-            action.commit()
+            gesture.commit()
         } finally {
-            shell.transition = null
+            gesture.cancel()
         }
     }
     CompositionLocalProvider(LocalBackScope provides owner) { content() }
