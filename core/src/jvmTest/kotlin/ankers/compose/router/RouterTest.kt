@@ -298,8 +298,7 @@ class RouterTest {
         assertEquals(tabs, root.backAction?.target)
 
         mode = "covered"
-        composition.frames(2)
-        assertNull(root.backAction)
+        composition.waitUntil { root.backAction == null }
 
         mode = "plain"
         composition.frames(2)

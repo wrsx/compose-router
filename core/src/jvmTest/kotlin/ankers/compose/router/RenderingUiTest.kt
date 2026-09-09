@@ -19,6 +19,8 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -38,6 +40,7 @@ import ankers.compose.router.render.PredictiveBackRenderer
 import ankers.compose.router.render.predictiveBackRenderer
 import ankers.compose.router.render.DefaultPredictiveBackSpec
 import ankers.compose.router.render.RouterRenderer
+import kotlinx.coroutines.flow.first
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -219,6 +222,46 @@ class RenderingUiTest {
         assertTrue("state Root/2 Retiring" in events.log, events.log.toString())
         assertEquals(emptyList(), events.retired())
 
+        mainClock.advanceTimeBy(1_000)
+        onNodeWithTag("S").assertDoesNotExist()
+        assertEquals(listOf("Root/2"), events.retired())
+    }
+
+    @Test
+    fun `a projected entry with an exit hook is released once the hook returns`() = runComposeUiTest {
+        mainClock.autoAdvance = false
+        val events = RecordingEvents()
+        lateinit var nav: StackNavigator<Root>
+        var hidden by mutableStateOf(false)
+        setContent {
+            OverlayHost(overlay = { projected ->
+                projected.forEach { item ->
+                    key(item.entry.id) {
+                        // a container with its own exit animation: the sheet is gone when `hidden` says so
+                        SideEffect { item.exit = { snapshotFlow { hidden }.first { it } } }
+                        Box(Modifier.testTag("overlay")) { item.content() }
+                    }
+                }
+            }) {
+                nav = rememberNavigator<Root>(events = events)
+                Router(nav) {
+                    screen<A> { BasicText("A", Modifier.testTag("A")) }
+                    projected<Sheet> { BasicText("S", Modifier.testTag("S")) }
+                }
+            }
+        }
+        nav.navigate(Sheet)
+        mainClock.advanceTimeBy(1_000)
+        onNodeWithTag("S").assertExists()
+
+        nav.back()
+        mainClock.advanceTimeBy(1_000)
+        // the transition settled long ago; the hook is what holds the projection
+        onNodeWithTag("S").assertExists()
+        assertTrue("state Root/2 Retiring" in events.log, events.log.toString())
+        assertEquals(emptyList(), events.retired())
+
+        hidden = true
         mainClock.advanceTimeBy(1_000)
         onNodeWithTag("S").assertDoesNotExist()
         assertEquals(listOf("Root/2"), events.retired())

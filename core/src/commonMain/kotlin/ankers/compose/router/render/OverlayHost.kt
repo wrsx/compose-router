@@ -39,11 +39,19 @@ class ProjectedEntry internal constructor(
      * Runs `false → true` as the entry is projected and `true → false` once its owner drops it, and follows a
      * predictive back gesture that would pop the entry. Animate with it
      * (`item.transition.AnimatedVisibility(visible = { it }, …)`) and [content] stays composed, live, until the
-     * exit ends: the projection is removed when the transition settles at `false`. An overlay that ignores it is
-     * removed the next frame.
+     * exit ends: the projection is removed when the transition settles at `false`. An overlay that ignores it — and
+     * sets no [exit] — is removed the next frame.
      */
     lateinit var transition: Transition<Boolean>
         internal set
+
+    /**
+     * For a container that animates its own exit — a Material sheet, a platform dialog — rather than with
+     * [transition]: set while the entry is projected, it is awaited after [transition] settles at `false`, and the
+     * projection is dropped only once it returns. Keep it bounded: a hook that never returns keeps the entry
+     * `Retiring` for good.
+     */
+    var exit: (suspend () -> Unit)? = null
 }
 
 class OverlayRegistry internal constructor() {
@@ -91,7 +99,8 @@ fun OverlayHost(
     }
 }
 
-// one transition per projection, created before the overlay reads it: enters, follows a gesture, exits, then drops
+// one transition per projection, created before the overlay reads it: enters, follows a gesture, exits, waits for
+// the container's own exit, then drops
 @Composable
 private fun Track(item: ProjectedEntry, registry: OverlayRegistry) {
     item.transition = rememberTransition(item.seekable, label = "projected ${item.entry.id}")
@@ -101,6 +110,7 @@ private fun Track(item: ProjectedEntry, registry: OverlayRegistry) {
                 // the owner dropped it: the gesture that did so is over, whatever its last reported progress
                 !visible -> {
                     item.seekable.animateTo(false)
+                    item.exit?.invoke()
                     registry.drop(item)
                 }
                 progress != null -> item.seekable.seekTo(progress.coerceIn(0f, 1f), targetState = false)
