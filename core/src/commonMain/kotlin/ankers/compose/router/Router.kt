@@ -138,23 +138,34 @@ fun <T : Screen> Router(
     if (declaredRoutes != routes) {
         val gone = shell.reconcile(declaredRoutes)
         gone.forEach { entry ->
-            if (registry.isHosted(entry.id)) {
-                previous.forScreen(entry.screen)?.let { retiring[entry.id] = it }
-            } else if (!registry.contains(entry.id)) {
+            // whether a host already renders it or a transition is about to, it leaves with the content it was
+            // declared with; the record goes when the entry is released
+            previous.forScreen(entry.screen)?.let { retiring[entry.id] = it }
+            if (!registry.isHosted(entry.id) && !registry.contains(entry.id)) {
                 // released inside this pass — a restored route rejected before the release listener below
                 // exists. Drop its payload here or it stays in every future save.
                 stateHolder.removeState(entry.id.toString())
             }
         }
+        // an entry popped moments ago is still on its way out; if its route left with this change, it keeps the
+        // content it was declared with as well
+        registry.hostedChildren(shell.prefix)
+            .filter { it !in shell.owned && it.id !in retiring && declared.forScreen(it.screen) == null }
+            .forEach { entry -> previous.forScreen(entry.screen)?.let { retiring[entry.id] = it } }
         routes.clear()
         routes += declaredRoutes
     }
     previous.clear()
     previous += declared
 
-    // saved state lives as long as its entry
+    // saved state and the retiring record live as long as their entry
     DisposableEffect(registry, stateHolder, shell) {
-        val listener = { id: EntryId -> if (id.parent == shell.prefix) stateHolder.removeState(id.toString()) }
+        val listener = { id: EntryId ->
+            if (id.parent == shell.prefix) {
+                stateHolder.removeState(id.toString())
+                retiring.remove(id)
+            }
+        }
         registry.releaseListeners += listener
         onDispose { registry.releaseListeners -= listener }
     }
@@ -169,16 +180,22 @@ fun <T : Screen> Router(
 
     // rebuilt each composition: it carries this composition's declarations to every host, projected ones included
     val renderEntry: @Composable (NavEntry<*>, Boolean, Boolean?) -> Unit = { entry, active, handlesBack ->
-        EntryHost(
-            navigator = navigator,
-            entry = entry,
-            active = active,
-            handlesBack = handlesBack,
-            stateHolder = stateHolder,
-            registration = registrationFor(entry)
-                ?: error("route ${entry.screen::class.routeName} is not registered in the Router of ${shell.prefix}"),
-            onUnhosted = { id -> retiring.remove(id) },
-        )
+        // a transition can still name an entry that a structural change released before any host drew it: there is
+        // nothing left to show for it
+        if (registry.contains(entry.id)) {
+            EntryHost(
+                navigator = navigator,
+                entry = entry,
+                active = active,
+                handlesBack = handlesBack,
+                stateHolder = stateHolder,
+                registration = registrationFor(entry)
+                    ?: error("route ${entry.screen::class.routeName} is not registered in the Router of ${shell.prefix}"),
+                onUnhosted = { id -> retiring.remove(id) },
+            )
+        } else {
+            registry.diagnostics("skipped rendering ${entry.id}: released before it was hosted")
+        }
     }
 
     val scope = RouterRenderScope(

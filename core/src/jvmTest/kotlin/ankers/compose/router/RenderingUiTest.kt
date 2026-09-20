@@ -448,6 +448,39 @@ class RenderingUiTest {
     }
 
     @Test
+    fun `an entry popped moments before its route leaves the graph keeps its content while it exits`() = runComposeUiTest {
+        mainClock.autoAdvance = false
+        var signedIn by mutableStateOf(true)
+        lateinit var root: StackNavigator<Root>
+        setContent {
+            root = rememberNavigator<Root>()
+            Router(root, renderer = PredictiveBackRenderer) {
+                if (signedIn) {
+                    screen<A> { BasicText("a", Modifier.testTag("a")) }
+                    screen<B> { BasicText("b", Modifier.testTag("b")) }
+                } else {
+                    screen<SignedOut> { BasicText("out", Modifier.testTag("out")) }
+                }
+            }
+        }
+        mainClock.advanceTimeBy(1_000)
+        root.navigate(B)
+        mainClock.advanceTimeBy(1_000)
+        onNodeWithTag("b").assertExists()
+
+        // pop B, then remove every signed-in route before its exit has finished: B still leaves with its content
+        root.back()
+        mainClock.advanceTimeByFrame()
+        signedIn = false
+        mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeBy(2_000)
+        onNodeWithTag("out").assertExists()
+        onNodeWithTag("b").assertDoesNotExist()
+        onNodeWithTag("a").assertDoesNotExist()
+    }
+
+    @Test
     fun `a screen registered by supertype keeps its content while it exits after a structural change`() = runComposeUiTest {
         mainClock.autoAdvance = false
         var showOverlays by mutableStateOf(true)

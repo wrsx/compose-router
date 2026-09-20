@@ -85,6 +85,10 @@ class EntryRegistry internal constructor(private val onReleased: (EntryId) -> Un
         releaseReady()
     }
 
+    /** The entries a host is rendering directly under [parent]: owned or on their way out. */
+    internal fun hostedChildren(parent: EntryId): List<OwnerEntry<*>> =
+        records.filter { (key, record) -> record.hosted && key.parent == parent }.values.map { it.entry }
+
     private fun hostedUnder(prefix: EntryId): Boolean =
         records.any { (key, record) -> record.hosted && key.isOrDescendantOf(prefix) }
 
