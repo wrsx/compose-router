@@ -37,9 +37,9 @@ Stack and retained-tab policies are included. Rendering is separate from navigat
 cover crossfade and predictive back, while custom renderers can implement multi-pane layouts, sheets or dialogs.
 An overlay can remain owned by the feature that opened it while being rendered higher in the UI.
 
-Each entry has its own ViewModel store, saved state and lifecycle. Entries parked in another tab keep their state;
-entries are released after they are no longer owned or rendered. Scoped events are available for analytics and DI,
-and `navigator.describe()` prints the current navigation tree.
+Each entry has its own retained values, ViewModel store, saved state and lifecycle. Entries parked in another tab
+keep their state; entries are released after they are no longer owned or rendered. Scoped events are available for
+analytics and DI, and `navigator.describe()` prints the current navigation tree.
 
 An entry can also define a longer-lived region. For example, an `Authenticated` entry can own a ViewModel or DI
 scope and provide it to every router beneath it. The scope survives navigation and retained-tab changes, then closes

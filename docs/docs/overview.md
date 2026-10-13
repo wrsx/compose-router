@@ -27,10 +27,10 @@ root.navigate(Home.then(Settings))   // ok: a typed path across both navigators
 screen with a crossfade, a list beside a detail, a base screen beneath a sheet. The library enforces the rules that
 keep any layout safe.
 
-**Entry lifetime.** Every entry has a ViewModel store, saved state, and a lifecycle, on every platform. An entry is
-*parked* while it is owned but not rendered (a background tab, the screen under the one you pushed) and keeps
-everything; it is *retired* when no navigator owns it and nothing renders it, and releases everything — including
-the screens parked beneath it.
+**Entry lifetime.** Every entry has retained values, a ViewModel store, saved state, and a lifecycle, on every
+platform. An entry is *parked* while it is owned but not rendered (a background tab, the screen under the one you
+pushed) and keeps everything; it is *retired* when no navigator owns it and nothing renders it, and releases
+everything — including the screens parked beneath it.
 
 ```kotlin
 val navigator = rememberNavigator<Root>()

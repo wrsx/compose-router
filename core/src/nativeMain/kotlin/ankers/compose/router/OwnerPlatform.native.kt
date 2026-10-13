@@ -12,3 +12,6 @@ internal object NoReflectionOwnerPlatform : OwnerPlatform {
     }
 
 }
+
+// the class name keys a retained value
+internal actual val KClass<*>.stableName: String? get() = qualifiedName

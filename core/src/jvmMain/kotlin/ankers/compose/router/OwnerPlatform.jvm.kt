@@ -20,3 +20,6 @@ internal object JvmOwnerPlatform : OwnerPlatform {
     }
 
 }
+
+// the class name keys a retained value: stable across processes, so its saved state is found again
+internal actual val KClass<*>.stableName: String? get() = qualifiedName

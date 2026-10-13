@@ -22,6 +22,7 @@ import ankers.compose.router.entry.EntryId
 import ankers.compose.router.entry.NavEntry
 import ankers.compose.router.events.HostEvents
 import ankers.compose.router.events.HostState
+import ankers.compose.router.host.LocalNavEntry
 import ankers.compose.router.host.OwnerEntry
 import ankers.compose.router.host.constructStartDestination
 import ankers.compose.router.host.rootLifecycleOwner
@@ -304,6 +305,7 @@ private fun <T : Screen> EntryHost(
     }
 
     val owners = buildList<ProvidedValue<*>> {
+        add(LocalNavEntry provides entry)
         if (entry is ViewModelStoreOwner) add(LocalViewModelStoreOwner provides entry)
         if (entry is LifecycleOwner) add(LocalLifecycleOwner provides entry)
         if (entry is SavedStateRegistryOwner) add(LocalSavedStateRegistryOwner provides entry)

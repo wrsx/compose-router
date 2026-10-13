@@ -77,3 +77,20 @@ Entries registered with `projected<T>` are not rendered in place: the default re
 
 `PredictiveBackRenderer` seeks a slide between the outgoing and incoming entries as the gesture progresses. A custom
 renderer reads `transition` — the outgoing and incoming entries, progress, and edge — and seeks its own leaving slot.
+
+## Choosing transitions per entry
+
+`PredictiveBackRenderer` is `predictiveBackRenderer()` with its default spec. Pass your own `PredictiveBackSpec` to
+pick the transition per pair of entries — the gesture seeks whatever you return, and `forward` is judged by where
+each entry last stood, so a popped entry animates out the way it came:
+
+```kotlin
+val AppRenderer = predictiveBackRenderer { forward ->
+    when {
+        targetState.screen is Player -> slideInVertically { it } togetherWith ExitTransition.KeepUntilTransitionsFinished
+        initialState.screen is Player && !forward ->
+            (EnterTransition.None togetherWith slideOutVertically { it }).apply { targetContentZIndex = -1f }
+        else -> DefaultPredictiveBackSpec(this, forward)
+    }
+}
+```

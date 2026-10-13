@@ -11,8 +11,8 @@ whose every field has a default need no `start = ...` anywhere. No platform uses
 ## Android
 
 - The runtime — entry registry, ViewModel stores, pending chains — is retained in an activity-scoped `ViewModel`,
-  so rotation keeps every entry's ViewModels; process death restores the navigator snapshot and each entry's
-  saved-state registry.
+  so rotation keeps every entry's ViewModels and retained values; process death restores the navigator snapshot
+  and each entry's saved-state registry.
 - Entries are `HasDefaultViewModelProviderFactory` with a `SavedStateViewModelFactory`: `hiltViewModel()` and
   `SavedStateHandle` work unchanged, and every handle is seeded with the screen — read it with
   `SavedStateHandle.screen<T>()`.
@@ -25,4 +25,6 @@ whose every field has a default need no `start = ...` anywhere. No platform uses
 
 - The runtime lives for the composition. There is no system back; call `navigator.back()` yourself.
 - ViewModels need an explicit factory on iOS and web (no reflection): `viewModel { MyViewModel(...) }`.
+- Without a `key`, `retained` keys a value by its class's qualified name. The web has no qualified names and uses
+  the simple name, so give retained classes that share a simple name distinct keys there.
 - Saved state is in-memory: parked sections restore, but there is no process death to survive.

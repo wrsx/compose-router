@@ -78,6 +78,14 @@ OverlayHost(overlay = { projected ->
 }) { /* ... */ }
 ```
 
+A container that animates its own exit — a Material sheet, whose `hide()` runs when the entry leaves — sets
+`item.exit` instead: a suspend function the host awaits after `transition` settles at `false`, dropping the
+projection once it returns. Keep it bounded; a hook that never returns keeps the entry `Retiring` for good.
+
+```kotlin
+SideEffect { item.exit = { snapshotFlow { sheet.isVisible }.first { !it } } }
+```
+
 A container with no transition of its own — a platform dialog — reads `item.visible` instead:
-`if (item.visible) AlertDialog(/* ... */) { item.content() }`. An overlay that ignores both is removed the next
-frame, so nothing leaks. Key each item by `entry.id` so a projection keeps its state while others come and go.
+`if (item.visible) AlertDialog(/* ... */) { item.content() }`. An overlay that ignores all three is removed the
+next frame, so nothing leaks. Key each item by `entry.id` so a projection keeps its state while others come and go.

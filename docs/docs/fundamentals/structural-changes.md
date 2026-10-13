@@ -19,7 +19,8 @@ Router(root) {
 
 When `signedIn` flips, entries of removed routes are retired — with everything nested beneath them, parked or not —
 the policy reconciles its selection, and if the navigator is left empty the new start destination is constructed.
-A removed screen keeps rendering until its exit transition completes.
+A removed screen keeps rendering until its exit transition completes, whether it was selected or already on its way
+out when its route left; a removed screen no host had drawn yet is released at once and is not rendered.
 
 Removing a **route** is the only structural teardown. Removing the **Router itself** — composing it
 conditionally, or a nested Router leaving composition with its screen — retires nothing: the entries stay owned

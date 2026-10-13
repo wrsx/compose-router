@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.SavedStateViewModelFactory
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.MutableCreationExtras
+import kotlin.reflect.KClass
 
 internal class AndroidOwnerPlatform(private val application: Application) : OwnerPlatform {
     override fun defaultFactory(entry: OwnerEntry<*>): ViewModelProvider.Factory =
@@ -13,3 +14,6 @@ internal class AndroidOwnerPlatform(private val application: Application) : Owne
         extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] = application
     }
 }
+
+// the class name keys a retained value: stable across processes, so its saved state is found again
+internal actual val KClass<*>.stableName: String? get() = qualifiedName

@@ -12,3 +12,6 @@ internal object NoReflectionOwnerPlatform : OwnerPlatform {
     }
 
 }
+
+// the web has no qualified class names, and no process death for saved state to outlive
+internal actual val KClass<*>.stableName: String? get() = simpleName

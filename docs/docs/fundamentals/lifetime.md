@@ -13,7 +13,7 @@ An entry is in one of four situations, and the library keeps them apart:
 | **Active** | yes | yes | selected, settled, uncovered — lifecycle `RESUMED` |
 | **Parked** | yes | no | a background tab, the screen under the one you pushed — everything retained, lifecycle `CREATED` |
 | **Retiring** | no | yes | popped, still animating out — retained until the host goes, lifecycle `CREATED` |
-| **Retired** | no | no | released: ViewModels cleared, saved state dropped, lifecycle `DESTROYED` |
+| **Retired** | no | no | released: retained values closed, ViewModels cleared, saved state dropped, lifecycle `DESTROYED` |
 
 Release cascades. Entry ids are paths (`Root/1/2`), so retiring an entry retires everything beneath its prefix —
 including screens parked in other tabs — while any ancestor of a still-rendered descendant stays alive until that
@@ -24,6 +24,38 @@ descendant exits.
 Every entry is a `ViewModelStoreOwner`, `LifecycleOwner`, and `SavedStateRegistryOwner`, on every platform.
 `viewModel()`, `LifecycleResumeEffect`, `collectAsStateWithLifecycle`, and `SavedStateHandle` behave as they do under
 Navigation 2 and 3. A nested entry's lifecycle never exceeds its parent entry's.
+
+## Retained values
+
+`retained` keeps a plain object, with no `ViewModel` supertype, for as long as its entry:
+
+```kotlin
+class UserProfileModel(
+    user: UserProfile,
+    repository: UserRepository,
+    scope: CoroutineScope,
+) {
+    val profile: StateFlow<Profile?> = repository.profile(user.id).stateIn(scope, SharingStarted.Eagerly, null)
+}
+
+screen<UserProfile> { entry ->
+    val model = retained { UserProfileModel(entry.screen, repository, coroutineScope) }
+    UserProfileScreen(model.profile.collectAsState().value)
+}
+```
+
+The value survives recomposition, parking and, on Android, configuration changes. When the entry is released its
+`coroutineScope` is cancelled and, if the value is `AutoCloseable`, it is closed. `coroutineScope` dispatches on the
+main thread where the platform has one, as `viewModelScope` does; a test constructs the class directly with a test
+scope.
+
+An entry retains one value per type, so every composable in its content that asks for `UserProfileModel` gets the
+same instance. Pass `key` to retain several values of one type. Name another entry as `owner` to reach the value that
+entry retains, for example a sheet that edits the filters of the list beneath it: the value lives as long as the
+owner, not the caller.
+
+After process death the restored entry creates its values again. State that must survive belongs in
+`savedStateHandle`, which is saved under the value's key and seeded with the entry's screen.
 
 ## Region-scoped state
 
@@ -36,7 +68,7 @@ signed-in part of an app can be owned by the `Authenticated` entry and passed to
 @Serializable object Account : ChildScreenOf<Authenticated>
 
 screen<Authenticated> {
-    val region = viewModel<AuthRegionModel>()
+    val region = retained { AuthRegion() }
     val authenticated = rememberNavigator()
 
     CompositionLocalProvider(LocalAuthRegion provides region) {
@@ -48,18 +80,18 @@ screen<Authenticated> {
 }
 ```
 
-`AuthRegionModel` belongs to the `Authenticated` entry. It survives navigation within the region, retained-tab
+`AuthRegion` belongs to the `Authenticated` entry. It survives navigation within the region, retained-tab
 changes, and periods when the entry is parked. Removing `Authenticated` retires every navigator beneath it and
-clears the model after the region has finished rendering, including exit animations.
+releases the region after it has finished rendering, including exit animations.
 
-Child entries still have their own ViewModel stores. Calling `viewModel<AuthRegionModel>()` inside `Home` would
-therefore create a Home-scoped instance rather than retrieve the authenticated one. Pass the region as a parameter,
-provide it through a custom `CompositionLocal`, or connect the same hierarchy to a DI container through the events
-API below. A projected overlay is composed at the `OverlayHost`, so give it the region through an argument or lexical
-capture rather than relying on a custom composition local.
+Child entries retain their own values. Calling `retained { AuthRegion() }` inside `Home` would therefore create a
+Home-scoped instance rather than retrieve the authenticated one. Pass the region as a parameter, provide it through
+a custom `CompositionLocal`, name the `Authenticated` entry as the `owner`, or connect the same hierarchy to a DI
+container through the events API below. A projected overlay is composed at the `OverlayHost`, so give it the region
+through an argument or lexical capture rather than relying on a custom composition local.
 
-If the scoped value needs deterministic cleanup, own it from a ViewModel and close it in `onCleared()`, or create and
-close it from `EntryEvents`. Only use a navigation entry for the scope when their lifetimes really match. A login
+If the scoped value needs deterministic cleanup, make it `AutoCloseable` so its entry closes it, or create and close
+it from `EntryEvents`. Only use a navigation entry for the scope when their lifetimes really match. A login
 session or token store will often belong to application authentication state, while signed-in UI state, feature
 components and flow coordinators are good candidates for the `Authenticated` entry.
 

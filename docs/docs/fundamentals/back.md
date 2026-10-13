@@ -39,3 +39,19 @@ container such as a dialog — enabled by `root.canGoBack`. A gesture captures t
 through the target navigator's renderer, and commits exactly that action on release.
 
 Other platforms have no system back; call `navigator.back()` from your own input handling.
+
+## Drag to dismiss
+
+`navigator.dragBack()` begins the same transition the platform's predictive gesture drives, from whatever back
+would do right now: `progress(fraction)` seeks the renderer between the outgoing and incoming entries, `commit()`
+completes the pop, `cancel()` returns. A vertical `draggable` on a presented screen or a sheet is all it takes:
+
+```kotlin
+var gesture: BackGesture? = null
+Modifier.draggable(
+    orientation = Orientation.Vertical,
+    state = rememberDraggableState { dy -> dragged += dy; gesture?.progress(dragged / height) },
+    onDragStarted = { dragged = 0f; gesture = navigator.dragBack() },
+    onDragStopped = { velocity -> if (dragged / height > 0.3f || velocity > 1500f) gesture?.commit() else gesture?.cancel() },
+)
+```

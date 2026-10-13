@@ -14,6 +14,18 @@ navigator.navigate(UserProfile(123))
 screen<UserProfile> { entry -> UserProfileScreen(entry.screen.id) }
 ```
 
+## In retained values
+
+A retained value is constructed by your own code, so the screen is an ordinary constructor argument:
+
+```kotlin
+class UserProfileModel(val user: UserProfile, scope: CoroutineScope)
+
+screen<UserProfile> { entry ->
+    val model = retained { UserProfileModel(entry.screen, coroutineScope) }
+}
+```
+
 ## In ViewModels
 
 Every entry is a `ViewModelStoreOwner`, so `viewModel()` scopes a ViewModel to the entry. The screen reaches the
